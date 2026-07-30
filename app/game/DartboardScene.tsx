@@ -233,7 +233,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
     const container = mount;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2("#05090b", 0.042);
+    scene.fog = new THREE.FogExp2("#ffffff", 0.018);
     const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 40);
     camera.position.set(0, -0.05, 8.8);
     camera.lookAt(0, 0, 0);
@@ -257,7 +257,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
 
     const wall = new THREE.Mesh(
       new THREE.PlaneGeometry(28, 18),
-      new THREE.MeshStandardMaterial({ color: "#10181b", roughness: 0.96, metalness: 0.04 }),
+      new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }),
     );
     wall.position.z = -0.52;
     scene.add(wall);
@@ -268,7 +268,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
 
     const oche = new THREE.Mesh(
       new THREE.PlaneGeometry(8, 5),
-      new THREE.MeshStandardMaterial({ color: "#0a0e10", roughness: 0.88, metalness: 0.08 }),
+      new THREE.MeshStandardMaterial({ color: "#eef0ef", roughness: 0.92, metalness: 0.02 }),
     );
     oche.rotation.x = -Math.PI / 2;
     oche.position.set(0, -3.25, 3.8);

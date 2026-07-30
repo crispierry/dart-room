@@ -57,6 +57,47 @@ test("the 3D darts game completes a real three-dart visit", async ({ page }) => 
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport);
 });
 
+test("menu controls preserve focus visibility and disabled-board scrolling", async ({ page }) => {
+  await prepareGame(page);
+  const playerName = page.getByLabel("Your name");
+  await playerName.focus();
+  await expect(playerName).toBeFocused();
+  expect(await playerName.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
+
+  const canvas = page.locator("canvas");
+  expect(await canvas.evaluate((element) => getComputedStyle(element).touchAction)).toBe("pan-y");
+  await page.getByRole("button", { name: "Solo" }).click();
+  await page.getByRole("button", { name: /Start Count Up/i }).click();
+  expect(await canvas.evaluate((element) => getComputedStyle(element).touchAction)).toBe("none");
+});
+
+test("the completion dialog contains focus and restores it on close", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "The full eight-round completion flow runs once.");
+  test.setTimeout(45_000);
+  await prepareGame(page);
+  await page.getByRole("button", { name: "Solo" }).click();
+  await page.getByRole("button", { name: /Start Count Up/i }).click();
+
+  for (let round = 1; round <= 8; round += 1) {
+    await completeVisit(page);
+    if (round < 8) {
+      await expect(page.getByText(`Round ${round + 1} / 8`, { exact: true })).toBeVisible({ timeout: 5_000 });
+    }
+  }
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator("[inert]")).toHaveCount(1);
+  const playAgain = dialog.getByRole("button", { name: /Play again/i });
+  const challenge = dialog.getByRole("button", { name: "Challenge a friend" });
+  await expect(playAgain).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(challenge).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("heading", { name: "Step up to the oche." })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Start Count Up/i })).toBeFocused();
+});
+
 test("the game exposes all modes and local multiplayer", async ({ page, browserName }) => {
   test.skip(browserName !== "chromium", "Long turn-flow checks run once in Chromium.");
   await prepareGame(page);

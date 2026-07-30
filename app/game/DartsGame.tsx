@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DartboardScene, type DartboardSceneHandle } from "./DartboardScene";
 import {
@@ -8,6 +8,7 @@ import {
   applyCricketHit,
   applyThreeOhOneHit,
   chooseAiTarget,
+  countUpWinnerIndex,
   createCricketMarks,
   createSeededRandom,
   describeMarks,
@@ -55,7 +56,7 @@ const INITIAL_CONFIG: GameConfig = Object.freeze({
   playerTwoName: "Player 2",
 });
 
-const PLAYER_COLORS = ["#77ead5", "#ff7567"] as const;
+const PLAYER_COLORS = ["#16815f", "#d94a4a"] as const;
 const ROUND_LIMITS: Partial<Record<GameMode, number>> = { countup: 8 };
 const AIM_PRESETS = [
   { value: "T20", label: "Triple 20", base: 20, multiplier: 3 as const },
@@ -129,19 +130,24 @@ function playHitSound(hit: HitResult, enabled: boolean) {
   oscillator.addEventListener("ended", () => void context.close());
 }
 
-function winnerFor(mode: GameMode, players: readonly Player[]): Player {
-  if (mode === "301") return players.find((player) => player.score === 0) ?? players[0];
+function winnerFor(mode: GameMode, players: readonly Player[]): Player | null {
+  if (mode === "301") return players.find((player) => player.score === 0) ?? players[0] ?? null;
   if (mode === "cricket") {
     return [...players].sort((a, b) => {
       const closedDifference = Number(hasClosedCricket(b.marks)) - Number(hasClosedCricket(a.marks));
       return closedDifference || b.score - a.score;
-    })[0];
+    })[0] ?? null;
   }
-  return [...players].sort((a, b) => b.score - a.score)[0];
+  const winnerIndex = countUpWinnerIndex(players.map((player) => player.score));
+  return winnerIndex === null ? null : players[winnerIndex] ?? null;
 }
 
 export function DartsGame() {
   const sceneRef = useRef<DartboardSceneHandle>(null);
+  const gameContentRef = useRef<HTMLDivElement>(null);
+  const resultDialogRef = useRef<HTMLElement>(null);
+  const menuStartRef = useRef<HTMLButtonElement>(null);
+  const throwButtonRef = useRef<HTMLButtonElement>(null);
   const endTurnTimerRef = useRef<number | null>(null);
   const aiTimerRef = useRef<number | null>(null);
   const randomRef = useRef(createSeededRandom(0x4d3c2b1a));
@@ -178,6 +184,21 @@ export function DartsGame() {
     };
   }, []);
 
+  useEffect(() => {
+    if (phase !== "complete") return;
+    const gameContent = gameContentRef.current;
+    const dialog = resultDialogRef.current;
+    gameContent?.setAttribute("inert", "");
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialog?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      gameContent?.removeAttribute("inert");
+    };
+  }, [phase]);
+
   const finishGame = useCallback((nextPlayers: readonly Player[]) => {
     if (config.mode === "countup") {
       const bestHuman = Math.max(...nextPlayers.filter((player) => !player.isCpu).map((player) => player.score));
@@ -190,7 +211,9 @@ export function DartsGame() {
     setResolving(false);
     setPhase("complete");
     const nextWinner = winnerFor(config.mode, nextPlayers);
-    setAnnouncement(`${nextWinner.name} wins ${modeTitle(config.mode)}.`);
+    setAnnouncement(nextWinner
+      ? `${nextWinner.name} wins ${modeTitle(config.mode)}.`
+      : `${modeTitle(config.mode)} ends in a draw.`);
   }, [config.mode, highScore]);
 
   const advanceTurn = useCallback((nextPlayers: readonly Player[]) => {
@@ -299,7 +322,7 @@ export function DartsGame() {
     const opponents = players
       .filter((_, index) => index !== activePlayerIndex)
       .map((player) => ({ score: player.score, marks: player.marks }));
-    const target = chooseAiTarget(config.mode, playerForAi, opponents);
+    const target = chooseAiTarget(config.mode, playerForAi, opponents, config.doubleOut);
     const impact = makeAiImpact(target, config.difficulty, randomRef.current);
     aiTimerRef.current = window.setTimeout(() => {
       sceneRef.current?.throwAt(impact.x, impact.y, activePlayer.color);
@@ -307,7 +330,7 @@ export function DartsGame() {
     return () => {
       if (aiTimerRef.current !== null) window.clearTimeout(aiTimerRef.current);
     };
-  }, [activePlayer, activePlayerIndex, config.difficulty, config.mode, dartsInVisit, phase, players, resolving]);
+  }, [activePlayer, activePlayerIndex, config.difficulty, config.doubleOut, config.mode, dartsInVisit, phase, players, resolving]);
 
   function startGame() {
     const nextPlayers = newPlayers(config);
@@ -325,6 +348,7 @@ export function DartsGame() {
     setResolving(false);
     setPhase("playing");
     setAnnouncement(`${nextPlayers[0].name}, your throw.`);
+    window.requestAnimationFrame(() => throwButtonRef.current?.focus());
   }
 
   function returnToMenu() {
@@ -334,6 +358,7 @@ export function DartsGame() {
     setResolving(false);
     setPhase("menu");
     setAnnouncement("Choose a game mode to begin.");
+    window.requestAnimationFrame(() => menuStartRef.current?.focus());
   }
 
   function throwPreset() {
@@ -368,25 +393,49 @@ export function DartsGame() {
     window.setTimeout(() => setShareStatus(""), 2200);
   }
 
+  function handleResultKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      returnToMenu();
+      return;
+    }
+    if (event.key !== "Tab" || !resultDialogRef.current) return;
+    const focusable = Array.from(
+      resultDialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled])"),
+    );
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   const visitTotal = useMemo(() => visitHits.reduce((total, hit) => total + hit.score, 0), [visitHits]);
 
   return (
     <main className={styles.gamePage}>
-      <header className={styles.gameHeader}>
+      <div ref={gameContentRef} className={styles.gameShell}>
+        <header className={styles.gameHeader}>
         <div className={styles.gameBrand} aria-label="Dart Room">
           <span className={styles.brandTarget} aria-hidden="true"><i /></span>
           <span>Dart Room</span>
           <small>3D browser darts</small>
         </div>
+        <p className={styles.headerTitle}>An interactive dart room</p>
         <div className={styles.headerActions}>
           <button type="button" onClick={() => setSoundEnabled((value) => !value)} aria-pressed={soundEnabled}>
             {soundEnabled ? "Sound on" : "Sound off"}
           </button>
           <button type="button" onClick={() => void shareGame()}>Share game</button>
         </div>
-      </header>
+        </header>
 
-      <div className={styles.gameGrid}>
+        <div className={styles.gameGrid}>
         <section className={styles.playStage} aria-label="Darts playing area">
           <div className={styles.stageTopline}>
             <span>{phase === "menu" ? "Free play" : modeTitle(config.mode)}</span>
@@ -407,7 +456,7 @@ export function DartsGame() {
         <aside className={styles.gamePanel}>
           {phase === "menu" ? (
             <div className={styles.setupPanel}>
-              <p className={styles.kicker}>A real browser darts game</p>
+              <p className={styles.kicker}>A playable dart experiment</p>
               <h1>Step up to the oche.</h1>
               <p className={styles.setupIntro}>Pick a match, flick a dart, and make the board sing. No download and no account.</p>
 
@@ -488,7 +537,7 @@ export function DartsGame() {
                 </label>
               ) : null}
 
-              <button className={styles.startButton} type="button" onClick={startGame}>
+              <button ref={menuStartRef} className={styles.startButton} type="button" onClick={startGame}>
                 Start {modeTitle(config.mode)} <span>→</span>
               </button>
               <div className={styles.personalBest}><span>Personal best</span><b>{highScore || "—"}</b><small>Count Up · this device</small></div>
@@ -550,7 +599,7 @@ export function DartsGame() {
                   <select id="aim-preset" value={aimPreset} onChange={(event) => setAimPreset(event.target.value as typeof aimPreset)} disabled={!canHumanThrow}>
                     {AIM_PRESETS.map((preset) => <option value={preset.value} key={preset.value}>{preset.label}</option>)}
                   </select>
-                  <button type="button" onClick={throwPreset} disabled={!canHumanThrow}>Throw</button>
+                  <button ref={throwButtonRef} type="button" onClick={throwPreset} disabled={!canHumanThrow}>Throw</button>
                 </div>
                 <small>Use this control if dragging is difficult.</small>
               </div>
@@ -561,16 +610,32 @@ export function DartsGame() {
               </div>
             </div>
           )}
-        </aside>
+          </aside>
+        </div>
       </div>
 
-      {phase === "complete" && winner ? (
+      {phase === "complete" ? (
         <div className={styles.resultBackdrop} role="presentation">
-          <section className={styles.resultCard} role="dialog" aria-modal="true" aria-labelledby="result-title">
+          <section
+            ref={resultDialogRef}
+            className={styles.resultCard}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="result-title"
+            aria-describedby="result-summary"
+            tabIndex={-1}
+            onKeyDown={handleResultKeyDown}
+          >
             <div className={styles.confetti} aria-hidden="true">✦ · ✧ · ✦</div>
             <p className={styles.kicker}>Match complete</p>
-            <h2 id="result-title">{winner.name} wins.</h2>
-            <p>{config.mode === "countup" ? `${winner.score} points after eight rounds.` : config.mode === "301" ? `${winner.dartsThrown} darts to check out.` : `${winner.score} points with every cricket target closed.`}</p>
+            <h2 id="result-title">{winner ? `${winner.name} wins.` : "Match drawn."}</h2>
+            <p id="result-summary">{winner
+              ? config.mode === "countup"
+                ? `${winner.score} points after eight rounds.`
+                : config.mode === "301"
+                  ? `${winner.dartsThrown} darts to check out.`
+                  : `${winner.score} points with every cricket target closed.`
+              : `${players.map((player) => player.name).join(" and ")} finish level on ${players[0]?.score ?? 0} points.`}</p>
             <div className={styles.resultActions}>
               <button className={styles.startButton} type="button" onClick={startGame}>Play again <span>↻</span></button>
               <button type="button" onClick={returnToMenu}>Change game</button>

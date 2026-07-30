@@ -1,20 +1,22 @@
 :root {
-  --font-display: Georgia, "Times New Roman", serif;
-  --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --font-body: var(--font-instrument-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --ink: #0a0a0a;
+  --ink: #142a46;
   --paper: #fafafa;
   --blue: #2563eb;
+  --teal: #3b766f;
+  --orange: #da8139;
 }
 
 * { box-sizing: border-box; }
 
-html { background: var(--ink); }
+html { background: var(--paper); }
 
 body {
   margin: 0;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;

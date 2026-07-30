@@ -5,6 +5,7 @@ import {
   applyCricketHit,
   applyThreeOhOneHit,
   chooseAiTarget,
+  countUpWinnerIndex,
   createCricketMarks,
   createSeededRandom,
   hasClosedCricket,
@@ -64,6 +65,12 @@ test("seeded CPU throws are reproducible", () => {
   assert.deepEqual(first, second);
 });
 
+test("count up reports a draw instead of choosing by player order", () => {
+  assert.equal(countUpWinnerIndex([320, 280]), 0);
+  assert.equal(countUpWinnerIndex([280, 320]), 1);
+  assert.equal(countUpWinnerIndex([320, 320]), null);
+});
+
 test("301 applies busts and double-out finishes", () => {
   assert.deepEqual(
     applyThreeOhOneHit(40, 40, { score: 40, ring: "double" }, true),
@@ -76,6 +83,32 @@ test("301 applies busts and double-out finishes", () => {
   assert.deepEqual(
     applyThreeOhOneHit(39, 80, { score: 38, ring: "double" }, true),
     { score: 80, bust: true, won: false },
+  );
+  assert.deepEqual(
+    applyThreeOhOneHit(2, 2, { score: 1, ring: "single" }, false),
+    { score: 1, bust: false, won: false },
+  );
+  assert.deepEqual(
+    applyThreeOhOneHit(1, 2, { score: 1, ring: "single" }, false),
+    { score: 0, bust: false, won: true },
+  );
+});
+
+test("301 CPU targets always leave a playable checkout", () => {
+  const marks = createCricketMarks();
+
+  for (const score of [3, 39, 61, 63, 99]) {
+    const target = chooseAiTarget("301", { score, marks }, [], true);
+    const point = targetCoordinates(target);
+    const result = applyThreeOhOneHit(score, score, scoreImpact(point.x, point.y), true);
+    assert.equal(result.bust, false, `double-out target from ${score} should not bust`);
+  }
+
+  const straightTarget = chooseAiTarget("301", { score: 1, marks }, [], false);
+  const straightPoint = targetCoordinates(straightTarget);
+  assert.deepEqual(
+    applyThreeOhOneHit(1, 1, scoreImpact(straightPoint.x, straightPoint.y), false),
+    { score: 0, bust: false, won: true },
   );
 });
 

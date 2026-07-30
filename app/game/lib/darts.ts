@@ -52,6 +52,15 @@ export type CricketHitResult = Readonly<{
   overflow: number;
 }>;
 
+export function countUpWinnerIndex(scores: readonly number[]): number | null {
+  if (scores.length === 0) return null;
+  const highestScore = Math.max(...scores);
+  const leaders = scores
+    .map((score, index) => ({ score, index }))
+    .filter(({ score }) => score === highestScore);
+  return leaders.length === 1 ? leaders[0].index : null;
+}
+
 const FULL_CIRCLE = Math.PI * 2;
 const SEGMENT_ANGLE = FULL_CIRCLE / SEGMENTS.length;
 
@@ -110,7 +119,7 @@ export function applyThreeOhOneHit(
   const remaining = currentScore - hit.score;
   const validFinish = hit.ring === "double" || hit.ring === "bull";
   const bust = remaining < 0
-    || remaining === 1
+    || (doubleOut && remaining === 1)
     || (remaining === 0 && doubleOut && !validFinish);
 
   return {
@@ -164,13 +173,32 @@ export function chooseAiTarget(
   mode: GameMode,
   player: PlayerForAi,
   opponents: readonly PlayerForAi[],
+  doubleOut = true,
 ): AimTarget {
   if (mode === "countup") return { base: 20, multiplier: 3 };
 
   if (mode === "301") {
+    if (!doubleOut) {
+      if (player.score <= 20) return { base: Math.max(1, player.score), multiplier: 1 };
+      if (player.score === 25) return { base: 25, multiplier: 1 };
+      if (player.score === 50) return { base: 25, multiplier: 2 };
+      if (player.score <= 40 && player.score % 2 === 0) {
+        return { base: player.score / 2, multiplier: 2 };
+      }
+      if (player.score <= 60 && player.score % 3 === 0) {
+        return { base: player.score / 3, multiplier: 3 };
+      }
+      if (player.score <= 40) return { base: player.score - 20, multiplier: 1 };
+      if (player.score <= 60) return { base: player.score - 40, multiplier: 1 };
+      return { base: 20, multiplier: 3 };
+    }
+
     if (player.score === 50) return { base: 25, multiplier: 2 };
     if (player.score > 1 && player.score <= 40 && player.score % 2 === 0) {
       return { base: player.score / 2, multiplier: 2 };
+    }
+    if (player.score > 1 && player.score <= 40) {
+      return { base: 1, multiplier: 1 };
     }
     if (player.score <= 60) {
       const leaveForty = player.score - 40;
@@ -178,6 +206,7 @@ export function chooseAiTarget(
         return { base: leaveForty, multiplier: 1 };
       }
     }
+    if (player.score === 61) return { base: 11, multiplier: 1 };
     return { base: 20, multiplier: 3 };
   }
 
