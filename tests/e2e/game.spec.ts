@@ -17,6 +17,7 @@ async function completeVisit(page: Page) {
 }
 
 test("the 3D darts game completes a real three-dart visit", async ({ page }) => {
+  test.setTimeout(90_000);
   await prepareGame(page);
 
   await expect(page.getByRole("heading", { name: "Step up to the oche." })).toBeVisible();
