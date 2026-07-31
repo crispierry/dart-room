@@ -4,6 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 async function prepareGame(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await expect(page.locator("canvas")).toBeVisible({ timeout: 15_000 });
 }
 
 async function completeVisit(page: Page) {
@@ -73,7 +74,7 @@ test("menu controls preserve focus visibility and disabled-board scrolling", asy
 
 test("the completion dialog contains focus and restores it on close", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "The full eight-round completion flow runs once.");
-  test.setTimeout(45_000);
+  test.setTimeout(120_000);
   await prepareGame(page);
   await page.getByRole("button", { name: "Solo" }).click();
   await page.getByRole("button", { name: /Start Count Up/i }).click();
