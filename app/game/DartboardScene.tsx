@@ -233,6 +233,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
     const container = mount;
 
     const scene = new THREE.Scene();
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     scene.fog = new THREE.FogExp2("#ffffff", 0.018);
     const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 40);
     camera.position.set(0, -0.05, 8.8);
@@ -344,7 +345,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
         start,
         end,
         startedAt: performance.now(),
-        duration: 610,
+        duration: prefersReducedMotion ? 120 : 610,
         hit,
         reported: false,
       });
@@ -428,7 +429,9 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
 
     function render(now: number) {
       frame = requestAnimationFrame(render);
-      board.rotation.z = -0.006 + Math.sin(now * 0.00022) * 0.0015;
+      board.rotation.z = prefersReducedMotion
+        ? -0.006
+        : -0.006 + Math.sin(now * 0.00022) * 0.0015;
 
       for (let index = activeDarts.length - 1; index >= 0; index -= 1) {
         const dart = activeDarts[index];
@@ -466,6 +469,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
       disposeObject(oche);
       disposeObject(reticle);
       renderer.dispose();
+      renderer.forceContextLoss();
       renderer.domElement.remove();
     };
   }, []);
