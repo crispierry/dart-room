@@ -58,6 +58,7 @@ const INITIAL_CONFIG: GameConfig = Object.freeze({
 
 const PLAYER_COLORS = ["#16815f", "#d94a4a"] as const;
 const ROUND_LIMITS: Partial<Record<GameMode, number>> = { countup: 8 };
+const EMBEDDED_SHARE_PATH = process.env.NEXT_PUBLIC_DART_ROOM_SHARE_PATH;
 const AIM_PRESETS = [
   { value: "T20", label: "Triple 20", base: 20, multiplier: 3 as const },
   { value: "T19", label: "Triple 19", base: 19, multiplier: 3 as const },
@@ -374,17 +375,20 @@ export function DartsGame() {
   }
 
   async function shareGame() {
+    const shareUrl = EMBEDDED_SHARE_PATH
+      ? new URL(EMBEDDED_SHARE_PATH, window.location.origin).href
+      : window.location.href;
     const shareData = {
       title: "Dart Room",
       text: `Can you beat my ${highScore || "best"} score in Dart Room?`,
-      url: window.location.href,
+      url: shareUrl,
     };
     try {
       if (navigator.share) {
         await navigator.share(shareData);
         setShareStatus("Share sheet opened");
       } else {
-        await navigator.clipboard.writeText(window.location.href);
+        await navigator.clipboard.writeText(shareUrl);
         setShareStatus("Game link copied");
       }
     } catch {

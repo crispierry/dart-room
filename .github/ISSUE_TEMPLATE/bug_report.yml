@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a reproducible problem in Dart Room
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Dart Room. Do not include sensitive security details here; use the private process in SECURITY.md.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Choose ...
+        2. Start ...
+        3. Throw ...
+    validations:
+      required: true
+  - type: dropdown
+    id: input
+    attributes:
+      label: Input method
+      options:
+        - Pointer or mouse
+        - Touch
+        - Keyboard-friendly Throw control
+        - Not applicable
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and device
+      placeholder: Firefox 140 on macOS, or Safari on iPhone
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional context
+      description: Add screenshots, console errors, or other useful details. Remove private information first.

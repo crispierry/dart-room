@@ -9,11 +9,13 @@
     "dev": "next dev",
     "build": "next build",
     "build:netlify": "next build --webpack",
+    "build:site": "node scripts/build-site.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit --incremental false",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern .netlify",
     "test": "npm run test:game",
     "test:game": "tsx --test tests/game/*.test.ts",
+    "test:site": "npm run build:site && tsx --test tests/site/*.test.ts",
     "test:e2e": "npm run build && npm run test:e2e:built",
     "test:e2e:built": "playwright test",
     "verify": "npm run typecheck && npm run lint && npm test && npm run build"
