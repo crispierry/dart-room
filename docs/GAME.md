@@ -19,6 +19,8 @@ Each visit contains up to three darts. The board pauses while a dart is in fligh
 
 Press over the board, swipe upward toward a target, and release. A longer, straighter gesture produces a more accurate impact. Very short or downward gestures do not throw a dart.
 
+On touch devices, the game viewport stays fixed while throwing so the browser cannot interpret a dart gesture as page scrolling or rubber-banding. Setup and score controls remain available in their own scrollable panel.
+
 ### Keyboard-friendly control
 
 Choose a target from **Keyboard aim**, then activate **Throw**. This control offers common triple, double, and bull targets without requiring a drag gesture. Standard keyboard navigation and visible focus indicators are supported throughout the interface.

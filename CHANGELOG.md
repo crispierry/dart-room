@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep iPhone and iPad dart gestures from scrolling or rubber-banding the game page while preserving an independently scrollable controls panel.
+
 ### Added
 
 - Conditional static export for embedding at `/project-apps/dart-room`.

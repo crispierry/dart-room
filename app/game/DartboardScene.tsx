@@ -366,6 +366,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
     }
 
     function handlePointerDown(event: PointerEvent) {
+      event.preventDefault();
       if (disabledRef.current || activeDarts.length > 0) return;
       renderer.domElement.setPointerCapture(event.pointerId);
       pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, startedAt: performance.now() };
@@ -374,6 +375,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
     }
 
     function handlePointerMove(event: PointerEvent) {
+      event.preventDefault();
       updateReticle(event);
       if (!pointer || event.pointerId !== pointer.id) return;
       setGesture({ startX: pointer.x, startY: pointer.y, endX: event.clientX, endY: event.clientY });
@@ -386,6 +388,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
     }
 
     function finishPointer(event: PointerEvent) {
+      event.preventDefault();
       if (!pointer || event.pointerId !== pointer.id) return;
       const currentPointer = pointer;
       pointer = null;
@@ -419,6 +422,8 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
     renderer.domElement.addEventListener("pointermove", handlePointerMove);
     renderer.domElement.addEventListener("pointerup", finishPointer);
     renderer.domElement.addEventListener("pointercancel", finishPointer);
+    const preventTouchScroll = (event: TouchEvent) => event.preventDefault();
+    renderer.domElement.addEventListener("touchmove", preventTouchScroll, { passive: false });
     renderer.domElement.addEventListener("pointerleave", (event) => {
       if (!pointer || event.pointerId !== pointer.id) reticle.visible = false;
     });
@@ -463,6 +468,7 @@ export const DartboardScene = forwardRef<DartboardSceneHandle, Props>(function D
       renderer.domElement.removeEventListener("pointermove", handlePointerMove);
       renderer.domElement.removeEventListener("pointerup", finishPointer);
       renderer.domElement.removeEventListener("pointercancel", finishPointer);
+      renderer.domElement.removeEventListener("touchmove", preventTouchScroll);
       clearDarts();
       disposeObject(board);
       disposeObject(wall);

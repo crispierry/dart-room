@@ -16,6 +16,45 @@ async function completeVisit(page: Page) {
   }
 }
 
+async function viewportLockState(page: Page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector("aside");
+    const canvas = document.querySelector("canvas");
+    if (!panel || !canvas) throw new Error("Game layout did not render.");
+    const htmlStyle = getComputedStyle(document.documentElement);
+    const bodyStyle = getComputedStyle(document.body);
+    const panelStyle = getComputedStyle(panel);
+    const canvasStyle = getComputedStyle(canvas);
+    return {
+      windowScrollY: window.scrollY,
+      documentClientHeight: document.documentElement.clientHeight,
+      documentScrollHeight: document.documentElement.scrollHeight,
+      htmlOverflow: htmlStyle.overflow,
+      bodyOverflow: bodyStyle.overflow,
+      bodyPosition: bodyStyle.position,
+      bodyOverscroll: bodyStyle.overscrollBehavior,
+      panelOverflowY: panelStyle.overflowY,
+      panelTouchAction: panelStyle.touchAction,
+      panelClientHeight: panel.clientHeight,
+      panelScrollHeight: panel.scrollHeight,
+      canvasTouchAction: canvasStyle.touchAction,
+    };
+  });
+}
+
+function expectLockedViewport(viewport: Awaited<ReturnType<typeof viewportLockState>>) {
+  expect(viewport.windowScrollY).toBe(0);
+  expect(viewport.documentScrollHeight).toBeLessThanOrEqual(viewport.documentClientHeight);
+  expect(viewport.htmlOverflow).toBe("hidden");
+  expect(viewport.bodyOverflow).toBe("hidden");
+  expect(viewport.bodyPosition).toBe("fixed");
+  expect(viewport.bodyOverscroll).toBe("none");
+  expect(viewport.panelOverflowY).toBe("auto");
+  expect(viewport.panelTouchAction).toBe("pan-y");
+  expect(viewport.panelScrollHeight).toBeGreaterThan(viewport.panelClientHeight);
+  expect(viewport.canvasTouchAction).toBe("none");
+}
+
 test("the 3D darts game completes a real three-dart visit", async ({ page }) => {
   test.setTimeout(90_000);
   await prepareGame(page);
@@ -59,7 +98,7 @@ test("the 3D darts game completes a real three-dart visit", async ({ page }) => 
   expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport);
 });
 
-test("menu controls preserve focus visibility and disabled-board scrolling", async ({ page }) => {
+test("menu controls preserve focus visibility and the board always owns touch gestures", async ({ page }) => {
   await prepareGame(page);
   const playerName = page.getByLabel("Your name");
   await playerName.focus();
@@ -67,10 +106,40 @@ test("menu controls preserve focus visibility and disabled-board scrolling", asy
   expect(await playerName.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
 
   const canvas = page.locator("canvas");
-  expect(await canvas.evaluate((element) => getComputedStyle(element).touchAction)).toBe("pan-y");
+  expect(await canvas.evaluate((element) => getComputedStyle(element).touchAction)).toBe("none");
   await page.getByRole("button", { name: "Solo" }).click();
   await page.getByRole("button", { name: /Start Count Up/i }).click();
   expect(await canvas.evaluate((element) => getComputedStyle(element).touchAction)).toBe("none");
+});
+
+test("mobile layouts keep the document fixed and scroll controls internally", async ({ page }, testInfo) => {
+  test.skip(
+    !["mobile-chromium", "mobile-webkit"].includes(testInfo.project.name),
+    "The viewport-lock contract runs in the touch profiles.",
+  );
+  await prepareGame(page);
+
+  expectLockedViewport(await viewportLockState(page));
+
+  const touchMovePrevented = await page.locator("canvas").evaluate((canvas) => {
+    const event = new Event("touchmove", { bubbles: true, cancelable: true });
+    canvas.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(touchMovePrevented).toBe(true);
+
+  await page.locator("aside").evaluate((panel) => {
+    panel.scrollTop = Math.min(160, panel.scrollHeight - panel.clientHeight);
+  });
+  expect(await page.locator("aside").evaluate((panel) => panel.scrollTop)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  if (testInfo.project.name === "mobile-webkit") {
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await page.reload();
+    await expect(page.locator("canvas")).toBeVisible({ timeout: 15_000 });
+    expectLockedViewport(await viewportLockState(page));
+  }
 });
 
 test("the completion dialog contains focus and restores it on close", async ({ page }, testInfo) => {

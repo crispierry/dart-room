@@ -11,9 +11,19 @@
 
 * { box-sizing: border-box; }
 
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 html { background: var(--paper); }
 
 body {
+  position: fixed;
+  inset: 0;
   margin: 0;
   background: var(--paper);
   color: var(--ink);
