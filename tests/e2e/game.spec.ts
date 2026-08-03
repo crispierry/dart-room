@@ -8,11 +8,11 @@ async function prepareGame(page: Page) {
 }
 
 async function completeVisit(page: Page) {
-  const throwButton = page.getByRole("button", { name: "Throw", exact: true });
+  const throwButton = page.locator("button:visible", { hasText: "Throw" });
 
   for (const expectedDarts of ["1 of 3 darts thrown", "2 of 3 darts thrown", "3 of 3 darts thrown"]) {
     await throwButton.click({ force: true });
-    await expect(page.getByLabel(expectedDarts)).toBeVisible({ timeout: 7_500 });
+    await expect(page.locator(`[aria-label="${expectedDarts}"]:visible`)).toBeVisible({ timeout: 7_500 });
   }
 }
 
@@ -75,14 +75,21 @@ test("the 3D darts game completes a real three-dart visit", async ({ page }) => 
 
   await page.getByRole("button", { name: "Solo" }).click();
   await page.getByRole("button", { name: /Start Count Up/i }).click();
-  await expect(page.getByRole("heading", { name: "Match live" })).toBeVisible();
+  const isMobile = (page.viewportSize()?.width ?? 1000) <= 620;
+  if (isMobile) {
+    await expect(page.getByText("Player 1 to throw", { exact: true })).toBeVisible();
+  } else {
+    await expect(page.getByRole("heading", { name: "Match live" })).toBeVisible();
+  }
 
-  const visit = page.locator("aside").getByText("This visit").locator("..");
+  const visit = isMobile
+    ? page.locator('[aria-label="Mobile scoreboard"]')
+    : page.locator("aside").getByText("This visit").locator("..");
   await completeVisit(page);
 
-  await expect(page.getByText("Round 2 / 8")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText(isMobile ? "R2/8" : "Round 2 / 8", { exact: true })).toBeVisible({ timeout: 5_000 });
   await expect(visit).toContainText("0");
-  await expect(page.getByText("180", { exact: true })).toBeVisible();
+  await expect(page.locator("strong:visible", { hasText: /^180$/ })).toBeVisible();
 
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(
@@ -142,6 +149,58 @@ test("mobile layouts keep the document fixed and scroll controls internally", as
   }
 });
 
+test("mobile play is immersive, compact, and exits through confirmation", async ({ page }, testInfo) => {
+  test.skip(
+    !["mobile-chromium", "mobile-webkit"].includes(testInfo.project.name),
+    "The immersive layout runs in the touch profiles.",
+  );
+  await prepareGame(page);
+
+  const setupBoard = page.locator(`section[aria-label="Darts playing area"]`);
+  const setupPanel = page.locator("aside");
+  const start = page.getByRole("button", { name: /Start Count Up/i });
+  await expect(setupBoard).toBeVisible();
+  await expect(start).toBeVisible();
+  expect(await setupBoard.getByRole("img").evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
+
+  await page.getByRole("button", { name: "Solo" }).click();
+  await start.click();
+  await expect(page.getByText("Player 1 to throw", { exact: true })).toBeVisible();
+  await expect(setupPanel).toBeHidden();
+
+  const layout = await page.evaluate(() => {
+    const canvas = document.querySelector("canvas")!.getBoundingClientRect();
+    const score = document.querySelector('[aria-label="Mobile scoreboard"]')!.getBoundingClientRect();
+    const aim = document.querySelector('#aim-preset-mobile')!.closest("div")!.getBoundingClientRect();
+    return {
+      documentHeight: document.documentElement.scrollHeight,
+      viewportHeight: document.documentElement.clientHeight,
+      canvasBottom: canvas.bottom,
+      scoreTop: score.top,
+      scoreBottom: score.bottom,
+      aimTop: aim.top,
+      aimBottom: aim.bottom,
+    };
+  });
+  expect(layout.documentHeight).toBeLessThanOrEqual(layout.viewportHeight);
+  expect(layout.canvasBottom).toBeLessThanOrEqual(layout.scoreTop + 1);
+  expect(layout.scoreBottom).toBeLessThanOrEqual(layout.aimTop + 1);
+  expect(layout.aimBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
+
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
+  const exitDialog = page.getByRole("dialog", { name: "Exit game?" });
+  await expect(exitDialog).toBeVisible();
+  await expect(exitDialog.getByRole("button", { name: /Keep playing/i })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(exitDialog).toBeHidden();
+  await expect(page.getByText("Player 1 to throw", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
+  await exitDialog.getByRole("button", { name: "Exit to game selection" }).click();
+  await expect(page.getByRole("heading", { name: "Step up to the oche." })).toBeVisible();
+  await expect(start).toBeFocused();
+});
+
 test("the completion dialog contains focus and restores it on close", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "The full eight-round completion flow runs once.");
   test.setTimeout(120_000);
@@ -172,14 +231,15 @@ test("the completion dialog contains focus and restores it on close", async ({ p
 test("the game exposes all modes and local multiplayer", async ({ page, browserName }) => {
   test.skip(browserName !== "chromium", "Long turn-flow checks run once in Chromium.");
   await prepareGame(page);
-  await expect(page.getByRole("button", { name: /^Count Up Eight/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^301 Race/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Cricket Close/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Count Up/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^301/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Cricket/i })).toBeVisible();
   await page.getByRole("button", { name: "Two players" }).click();
   await expect(page.getByLabel("Friend's name")).toBeVisible();
   await page.getByRole("button", { name: /Start Count Up/i }).click();
   await completeVisit(page);
-  await expect(page.getByText("Player 2 at the oche")).toBeVisible({ timeout: 5_000 });
+  const isMobile = (page.viewportSize()?.width ?? 1000) <= 620;
+  await expect(page.getByText(isMobile ? "Player 2 to throw" : "Player 2 at the oche", { exact: true })).toBeVisible({ timeout: 5_000 });
 });
 
 test("the CPU completes its own visit", async ({ page, browserName }) => {
@@ -188,7 +248,8 @@ test("the CPU completes its own visit", async ({ page, browserName }) => {
   await page.getByRole("button", { name: /Start Count Up/i }).click();
   await completeVisit(page);
 
-  await expect(page.getByText("Round 2 / 8")).toBeVisible({ timeout: 12_000 });
-  const cpuScore = page.getByRole("article").filter({ hasText: "Casey" }).locator("strong");
+  const isMobile = (page.viewportSize()?.width ?? 1000) <= 620;
+  await expect(page.getByText(isMobile ? "R2/8" : "Round 2 / 8", { exact: true })).toBeVisible({ timeout: 12_000 });
+  const cpuScore = page.locator("article:visible").filter({ hasText: "Casey" }).locator("strong");
   await expect(cpuScore).not.toHaveText("0");
 });

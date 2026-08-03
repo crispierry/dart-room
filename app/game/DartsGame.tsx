@@ -147,8 +147,11 @@ export function DartsGame() {
   const sceneRef = useRef<DartboardSceneHandle>(null);
   const gameContentRef = useRef<HTMLDivElement>(null);
   const resultDialogRef = useRef<HTMLElement>(null);
+  const exitDialogRef = useRef<HTMLElement>(null);
+  const exitReturnFocusRef = useRef<HTMLElement | null>(null);
   const menuStartRef = useRef<HTMLButtonElement>(null);
   const throwButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileThrowButtonRef = useRef<HTMLButtonElement>(null);
   const endTurnTimerRef = useRef<number | null>(null);
   const aiTimerRef = useRef<number | null>(null);
   const randomRef = useRef(createSeededRandom(0x4d3c2b1a));
@@ -167,6 +170,7 @@ export function DartsGame() {
   const [aimPreset, setAimPreset] = useState<(typeof AIM_PRESETS)[number]["value"]>("T20");
   const [shareStatus, setShareStatus] = useState("");
   const [highScore, setHighScore] = useState(0);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const activePlayer = players[activePlayerIndex] ?? players[0];
   const winner = phase === "complete" ? winnerFor(config.mode, players) : null;
@@ -186,9 +190,14 @@ export function DartsGame() {
   }, []);
 
   useEffect(() => {
-    if (phase !== "complete") return;
+    if (window.parent === window) return;
+    window.parent.postMessage({ type: "dart-room:phase", version: 1, phase }, window.location.origin);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "complete" && !showExitConfirm) return;
     const gameContent = gameContentRef.current;
-    const dialog = resultDialogRef.current;
+    const dialog = showExitConfirm ? exitDialogRef.current : resultDialogRef.current;
     gameContent?.setAttribute("inert", "");
     const focusFrame = window.requestAnimationFrame(() => {
       dialog?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
@@ -198,7 +207,7 @@ export function DartsGame() {
       window.cancelAnimationFrame(focusFrame);
       gameContent?.removeAttribute("inert");
     };
-  }, [phase]);
+  }, [phase, showExitConfirm]);
 
   const finishGame = useCallback((nextPlayers: readonly Player[]) => {
     if (config.mode === "countup") {
@@ -347,9 +356,13 @@ export function DartsGame() {
     setVisitStartScore(nextPlayers[0].score);
     setLastHit(null);
     setResolving(false);
+    setShowExitConfirm(false);
     setPhase("playing");
     setAnnouncement(`${nextPlayers[0].name}, your throw.`);
-    window.requestAnimationFrame(() => throwButtonRef.current?.focus());
+    window.requestAnimationFrame(() => {
+      const mobile = window.matchMedia("(max-width: 620px)").matches;
+      (mobile ? mobileThrowButtonRef.current : throwButtonRef.current)?.focus();
+    });
   }
 
   function returnToMenu() {
@@ -357,9 +370,40 @@ export function DartsGame() {
     if (aiTimerRef.current !== null) window.clearTimeout(aiTimerRef.current);
     sceneRef.current?.clearDarts();
     setResolving(false);
+    setShowExitConfirm(false);
     setPhase("menu");
     setAnnouncement("Choose a game mode to begin.");
     window.requestAnimationFrame(() => menuStartRef.current?.focus());
+  }
+
+  function requestExit() {
+    exitReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setShowExitConfirm(true);
+  }
+
+  function cancelExit() {
+    setShowExitConfirm(false);
+    window.requestAnimationFrame(() => exitReturnFocusRef.current?.focus());
+  }
+
+  function handleExitKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelExit();
+      return;
+    }
+    if (event.key !== "Tab" || !exitDialogRef.current) return;
+    const focusable = Array.from(exitDialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled])"));
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   function throwPreset() {
@@ -422,7 +466,7 @@ export function DartsGame() {
   const visitTotal = useMemo(() => visitHits.reduce((total, hit) => total + hit.score, 0), [visitHits]);
 
   return (
-    <main className={styles.gamePage}>
+    <main className={`${styles.gamePage} ${phase === "menu" ? styles.menuPhase : styles.matchPhase}`}>
       <div ref={gameContentRef} className={styles.gameShell}>
         <header className={styles.gameHeader}>
         <div className={styles.gameBrand} aria-label="Dart Room">
@@ -441,6 +485,13 @@ export function DartsGame() {
 
         <div className={styles.gameGrid}>
         <section className={styles.playStage} aria-label="Darts playing area">
+          {phase !== "menu" ? (
+            <div className={styles.mobileMatchBar}>
+              <button type="button" onClick={requestExit}>Exit</button>
+              <div><b>{modeTitle(config.mode)}</b><span>{resolving ? "Collecting darts" : `${activePlayer?.name ?? "Player"} to throw`}</span></div>
+              <strong>R{round}{roundLimit ? `/${roundLimit}` : ""}</strong>
+            </div>
+          ) : null}
           <div className={styles.stageTopline}>
             <span>{phase === "menu" ? "Free play" : modeTitle(config.mode)}</span>
             <span>{phase === "playing" ? `Round ${round}${roundLimit ? ` / ${roundLimit}` : ""}` : "Swipe to throw"}</span>
@@ -455,6 +506,37 @@ export function DartsGame() {
             <i aria-hidden="true" />
             {phase === "menu" ? "Board calibrated" : resolving ? "Collecting darts" : `${activePlayer?.name ?? "Player"} at the oche`}
           </div>
+          {phase !== "menu" ? (
+            <div className={styles.mobileScoreRail} aria-label="Mobile scoreboard">
+              <div className={styles.mobilePlayers}>
+                {players.map((player, index) => (
+                  <article key={player.id} className={index === activePlayerIndex && phase === "playing" ? styles.mobileActiveScore : ""} style={{ "--player-color": player.color } as CSSProperties}>
+                    <span>{player.name}</span><strong>{scoreLabel(config.mode, player)}</strong>
+                  </article>
+                ))}
+                <div className={styles.mobileVisit}>
+                  <span>Visit</span><strong>{visitTotal}</strong>
+                  <small aria-label={`${dartsInVisit} of 3 darts thrown`}>{[0, 1, 2].map((index) => visitHits[index]?.score ?? "·").join("  ")}</small>
+                </div>
+              </div>
+              {config.mode === "cricket" ? (
+                <div className={styles.mobileCricket} aria-label="Cricket marks">
+                  {CRICKET_TARGETS.map((target) => (
+                    <span key={target}><b>{target === 25 ? "B" : target}</b>{players.map((player) => <i key={player.id}>{formatMark(player.marks[target] ?? 0)}</i>)}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {phase !== "menu" ? (
+            <div className={styles.mobileAim}>
+              <label htmlFor="aim-preset-mobile">Aim</label>
+              <select id="aim-preset-mobile" value={aimPreset} onChange={(event) => setAimPreset(event.target.value as typeof aimPreset)} disabled={!canHumanThrow}>
+                {AIM_PRESETS.map((preset) => <option value={preset.value} key={preset.value}>{preset.label}</option>)}
+              </select>
+              <button ref={mobileThrowButtonRef} type="button" onClick={throwPreset} disabled={!canHumanThrow}>Throw</button>
+            </div>
+          ) : null}
         </section>
 
         <aside className={styles.gamePanel}>
@@ -553,7 +635,7 @@ export function DartsGame() {
                   <p className={styles.kicker}>{modeTitle(config.mode)} match</p>
                   <h1>{phase === "complete" ? "Game over" : "Match live"}</h1>
                 </div>
-                <button type="button" onClick={returnToMenu}>Exit</button>
+                <button type="button" onClick={requestExit}>Exit</button>
               </div>
 
               <div className={styles.scoreboard} aria-label="Scoreboard">
@@ -644,6 +726,29 @@ export function DartsGame() {
               <button className={styles.startButton} type="button" onClick={startGame}>Play again <span>↻</span></button>
               <button type="button" onClick={returnToMenu}>Change game</button>
               <button type="button" onClick={() => void shareGame()}>Challenge a friend</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showExitConfirm ? (
+        <div className={styles.resultBackdrop} role="presentation">
+          <section
+            ref={exitDialogRef}
+            className={`${styles.resultCard} ${styles.exitCard}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="exit-title"
+            aria-describedby="exit-summary"
+            tabIndex={-1}
+            onKeyDown={handleExitKeyDown}
+          >
+            <p className={styles.kicker}>Leave this match?</p>
+            <h2 id="exit-title">Exit game?</h2>
+            <p id="exit-summary">Your current score and progress will be discarded.</p>
+            <div className={styles.resultActions}>
+              <button className={styles.startButton} type="button" onClick={cancelExit}>Keep playing <span>→</span></button>
+              <button type="button" onClick={returnToMenu}>Exit to game selection</button>
             </div>
           </section>
         </div>
