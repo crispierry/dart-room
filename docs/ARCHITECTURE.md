@@ -4,6 +4,8 @@
 
 Dart Room is a client-side Next.js application. React owns the game interface and match state, Three.js renders the interactive board, and pure TypeScript functions calculate scoring and CPU decisions. There is no application backend, database, account system, or server-owned game state.
 
+When embedded on the Cris website, the game reports menu, playing, and complete transitions to its same-origin parent with `{ type: "dart-room:phase", version: 1, phase }`. The parent may use playing and complete to promote the frame into an immersive mobile viewport. Receivers must validate both the sender window and origin before acting on the message.
+
 ```text
 Pointer or accessible controls
               |

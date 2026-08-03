@@ -463,6 +463,7 @@
 }
 
 .matchHeading > button:hover { color: var(--game-red); }
+.matchHeading > button:disabled { opacity: 0.4; cursor: not-allowed; }
 .scoreboard { display: grid; gap: 8px; }
 .scoreboard article {
   --player-color: var(--game-teal);
@@ -612,6 +613,12 @@
   box-shadow: 0 20px 50px rgba(20, 42, 70, 0.18);
 }
 
+.mobileMatchBar,
+.mobileScoreRail,
+.mobileAim { display: none; }
+
+.exitCard { width: min(100%, 420px); }
+
 @keyframes swipe {
   0%, 100% { transform: translateY(2px); opacity: 0.55; }
   50% { transform: translateY(-3px); opacity: 1; }
@@ -662,20 +669,142 @@
     color: var(--game-ink);
     font-size: 14px;
   }
-  .gameGrid { grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); }
-  .playStage { min-height: 0; grid-template-rows: 38px minmax(0, 1fr) 38px; }
+  .menuPhase .gameGrid { grid-template-rows: clamp(158px, 24dvh, 210px) minmax(0, 1fr); }
+  .menuPhase .playStage { min-height: 0; grid-template-rows: 30px minmax(0, 1fr) 30px; }
+  .menuPhase .sceneShell { pointer-events: none; cursor: default; }
+  .menuPhase .throwHint { display: none; }
+  .matchPhase { height: 100dvh; }
+  .matchPhase .gameShell { grid-template-rows: minmax(0, 1fr); }
+  .matchPhase .gameHeader,
+  .matchPhase .gamePanel,
+  .matchPhase .stageTopline,
+  .matchPhase .ambientStatus,
+  .matchPhase .throwHint { display: none; }
+  .matchPhase .gameGrid {
+    height: 100%;
+    display: block;
+  }
+  .matchPhase .playStage {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    border: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .matchPhase .sceneShell { grid-row: 2; min-height: 0; }
+  .mobileMatchBar {
+    min-height: 44px;
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr) 48px;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--game-line);
+    background: rgba(250, 250, 250, 0.96);
+  }
+  .mobileMatchBar button {
+    min-height: 34px;
+    border: 1px solid var(--game-line);
+    border-radius: 4px;
+    background: #fff;
+    color: #b33131;
+    font: 750 10px var(--font-mono);
+    text-transform: uppercase;
+  }
+  .mobileMatchBar button:disabled { opacity: 0.42; cursor: not-allowed; }
+  .mobileMatchBar div { min-width: 0; display: grid; gap: 2px; text-align: center; }
+  .mobileMatchBar b { font-size: 11px; }
+  .mobileMatchBar span {
+    overflow: hidden;
+    color: var(--game-subtle);
+    font: 700 8px var(--font-mono);
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .mobileMatchBar strong { color: var(--game-subtle); font: 700 10px var(--font-mono); text-align: right; }
+  .mobileScoreRail {
+    display: grid;
+    gap: 5px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--game-line);
+    background: #fff;
+  }
+  .mobilePlayers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) 70px; gap: 5px; }
+  .mobilePlayers article,
+  .mobileVisit {
+    min-width: 0;
+    min-height: 43px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 2px 6px;
+    padding: 5px 7px;
+    border: 1px solid var(--game-line);
+    border-left: 3px solid transparent;
+    border-radius: 3px;
+    background: var(--game-paper);
+  }
+  .mobilePlayers article:only-child { grid-column: span 2; }
+  .mobilePlayers article:first-child:nth-last-child(2) { grid-column: span 2; }
+  .mobilePlayers .mobileActiveScore { border-left-color: var(--player-color); background: color-mix(in srgb, var(--player-color) 6%, white); }
+  .mobilePlayers span { overflow: hidden; color: var(--game-subtle); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .mobilePlayers strong { font: 600 21px/1 var(--font-mono); letter-spacing: -0.06em; }
+  .mobileVisit { grid-template-columns: 1fr auto; }
+  .mobileVisit small { grid-column: 1 / -1; color: var(--game-subtle); font: 700 8px var(--font-mono); white-space: pre; }
+  .mobileCricket { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--game-line); border-radius: 3px; overflow: hidden; }
+  .mobileCricket span { display: grid; place-items: center; gap: 1px; padding: 3px 1px; border-right: 1px solid var(--game-line); }
+  .mobileCricket span:last-child { border-right: 0; }
+  .mobileCricket b { color: var(--game-subtle); font: 700 7px var(--font-mono); }
+  .mobileCricket i { color: var(--game-orange); font: normal 700 8px var(--font-mono); }
+  .mobileAim {
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 8px;
+    border-top: 1px solid var(--game-line);
+    background: var(--game-paper);
+  }
+  .mobileAim label { color: var(--game-subtle); font: 700 8px var(--font-mono); text-transform: uppercase; }
+  .mobileAim select { min-width: 0; min-height: 36px; padding: 0 8px; border: 1px solid var(--game-line); border-radius: 3px; background: #fff; }
+  .mobileAim button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 3px; background: var(--game-blue); color: #fff; font-weight: 750; }
+  .mobileAim button:disabled { opacity: 0.35; }
   .sceneMount { min-height: 0; }
   .stageTopline,
   .ambientStatus { padding-inline: 14px; }
   .throwHint { bottom: 17px; max-width: calc(100% - 28px); overflow: hidden; font-size: 8px; text-overflow: ellipsis; }
   .setupPanel,
-  .matchPanel { padding: 34px 18px 42px; }
-  .setupPanel h1 { font-size: clamp(48px, 15vw, 68px); }
-  .modePicker { grid-template-columns: 1fr; }
-  .modePicker button { min-height: 60px; }
+  .matchPanel { padding: 20px 16px 30px; }
+  .setupPanel .kicker,
+  .setupIntro { display: none; }
+  .setupPanel h1 { margin-bottom: 17px; font-size: 35px; line-height: 1; }
+  .setupPanel h1::after { width: 48px; margin-top: 9px; }
+  .modePicker { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 16px; }
+  .modePicker button { min-height: 58px; justify-content: center; padding: 8px; }
+  .modePicker b { font-size: 12px; }
+  .modePicker span { display: none; }
+  .playerPicker { margin-bottom: 16px; }
+  .playerPicker button { min-height: 38px; font-size: 11px; }
+  .nameFields,
+  .difficultyRow { margin-bottom: 14px; }
+  .startButton { min-height: 50px; }
+  .personalBest { margin-top: 14px; padding-top: 12px; }
   .nameFields { grid-template-columns: 1fr; }
   .scoreboard article > div { margin-top: 5px; }
   .cricketTable > div { grid-template-columns: 58px repeat(var(--cricket-players, 2), 1fr); }
+  .exitCard { padding: 28px 22px; }
+  .exitCard h2 { font-size: 48px; }
+}
+
+@media (max-width: 620px) and (max-height: 700px) {
+  .menuPhase .gameGrid { grid-template-rows: 130px minmax(0, 1fr); }
+  .matchPhase .mobileMatchBar { min-height: 40px; }
+  .mobilePlayers article,
+  .mobileVisit { min-height: 38px; }
+  .mobileAim { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
