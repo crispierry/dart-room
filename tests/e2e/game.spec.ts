@@ -201,6 +201,29 @@ test("mobile play is immersive, compact, and exits through confirmation", async 
   await expect(start).toBeFocused();
 });
 
+test("exit confirmation pauses CPU play and cannot interrupt turn resolution", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "The timer regression runs once in desktop Chromium.");
+  await prepareGame(page);
+  await page.getByRole("button", { name: /Start Count Up/i }).click();
+  await completeVisit(page);
+
+  const exit = page.getByRole("button", { name: "Exit", exact: true });
+  await expect(exit).toBeDisabled();
+  await expect(page.getByText("Casey at the oche", { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(exit).toBeEnabled();
+  await exit.click();
+
+  const dialog = page.getByRole("dialog", { name: "Exit game?" });
+  const cpuCard = page.locator("article:visible").filter({ hasText: "Casey" });
+  await expect(dialog).toBeVisible();
+  await page.waitForTimeout(1_500);
+  await expect(cpuCard).toContainText("0 darts");
+
+  await dialog.getByRole("button", { name: /Keep playing/i }).click();
+  await expect(page.getByText("Round 2 / 8", { exact: true })).toBeVisible({ timeout: 12_000 });
+  await expect(cpuCard).not.toContainText("0 darts");
+});
+
 test("the completion dialog contains focus and restores it on close", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "The full eight-round completion flow runs once.");
   test.setTimeout(120_000);

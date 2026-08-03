@@ -219,6 +219,7 @@ export function DartsGame() {
     }
     setPlayers(nextPlayers);
     setResolving(false);
+    setShowExitConfirm(false);
     setPhase("complete");
     const nextWinner = winnerFor(config.mode, nextPlayers);
     setAnnouncement(nextWinner
@@ -327,7 +328,7 @@ export function DartsGame() {
   ]);
 
   useEffect(() => {
-    if (phase !== "playing" || resolving || !activePlayer?.isCpu) return;
+    if (phase !== "playing" || resolving || showExitConfirm || !activePlayer?.isCpu) return;
     const playerForAi = { score: activePlayer.score, marks: activePlayer.marks };
     const opponents = players
       .filter((_, index) => index !== activePlayerIndex)
@@ -340,7 +341,7 @@ export function DartsGame() {
     return () => {
       if (aiTimerRef.current !== null) window.clearTimeout(aiTimerRef.current);
     };
-  }, [activePlayer, activePlayerIndex, config.difficulty, config.doubleOut, config.mode, dartsInVisit, phase, players, resolving]);
+  }, [activePlayer, activePlayerIndex, config.difficulty, config.doubleOut, config.mode, dartsInVisit, phase, players, resolving, showExitConfirm]);
 
   function startGame() {
     const nextPlayers = newPlayers(config);
@@ -377,6 +378,7 @@ export function DartsGame() {
   }
 
   function requestExit() {
+    if (resolving) return;
     exitReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setShowExitConfirm(true);
   }
@@ -487,7 +489,7 @@ export function DartsGame() {
         <section className={styles.playStage} aria-label="Darts playing area">
           {phase !== "menu" ? (
             <div className={styles.mobileMatchBar}>
-              <button type="button" onClick={requestExit}>Exit</button>
+              <button type="button" onClick={requestExit} disabled={resolving}>Exit</button>
               <div><b>{modeTitle(config.mode)}</b><span>{resolving ? "Collecting darts" : `${activePlayer?.name ?? "Player"} to throw`}</span></div>
               <strong>R{round}{roundLimit ? `/${roundLimit}` : ""}</strong>
             </div>
@@ -635,7 +637,7 @@ export function DartsGame() {
                   <p className={styles.kicker}>{modeTitle(config.mode)} match</p>
                   <h1>{phase === "complete" ? "Game over" : "Match live"}</h1>
                 </div>
-                <button type="button" onClick={requestExit}>Exit</button>
+                <button type="button" onClick={requestExit} disabled={resolving}>Exit</button>
               </div>
 
               <div className={styles.scoreboard} aria-label="Scoreboard">
