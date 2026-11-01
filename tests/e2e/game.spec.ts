@@ -205,13 +205,26 @@ test("exit confirmation pauses CPU play and cannot interrupt turn resolution", a
   test.skip(testInfo.project.name !== "chromium", "The timer regression runs once in desktop Chromium.");
   await prepareGame(page);
   await page.getByRole("button", { name: /Start Count Up/i }).click();
+  // Open in the same browser task that observes the CPU turn. Separate
+  // Playwright commands can spend the entire first-throw delay on a busy runner.
+  await page.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      if (!document.body.textContent?.includes("Casey at the oche")) return;
+      const exit = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+        (button) => button.textContent === "Exit" && button.checkVisibility() && !button.disabled,
+      );
+      if (!exit) return;
+      observer.disconnect();
+      exit.click();
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+  });
   await completeVisit(page);
 
   const exit = page.getByRole("button", { name: "Exit", exact: true });
   await expect(exit).toBeDisabled();
   await expect(page.getByText("Casey at the oche", { exact: true })).toBeVisible({ timeout: 5_000 });
   await expect(exit).toBeEnabled();
-  await exit.click();
 
   const dialog = page.getByRole("dialog", { name: "Exit game?" });
   const cpuCard = page.locator("article:visible").filter({ hasText: "Casey" });
