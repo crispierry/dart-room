@@ -230,7 +230,7 @@ test("exit confirmation pauses CPU play and cannot interrupt turn resolution", a
   await expect(cpuCard).toContainText("0 darts");
 
   await dialog.getByRole("button", { name: /Keep playing/i }).click();
-  await page.clock.runFor(5_000);
+  await page.clock.resume();
   await expect(page.getByText("Round 2 / 8", { exact: true })).toBeVisible({ timeout: 12_000 });
   await expect(cpuCard).not.toContainText("0 darts");
 });
