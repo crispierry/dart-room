@@ -203,12 +203,22 @@ test("mobile play is immersive, compact, and exits through confirmation", async 
 
 test("exit confirmation pauses CPU play and cannot interrupt turn resolution", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "The timer regression runs once in desktop Chromium.");
+  await page.clock.install();
   await prepareGame(page);
   await page.getByRole("button", { name: /Start Count Up/i }).click();
-  await completeVisit(page);
+  // Freeze before the first turn so a loaded runner cannot spend the CPU's
+  // 820 ms thinking time between observing its turn and opening the dialog.
+  await page.clock.pauseAt(new Date(Date.now() + 60_000));
+  const throwButton = page.locator("button:visible", { hasText: "Throw" });
+  for (const expectedDarts of ["1 of 3 darts thrown", "2 of 3 darts thrown", "3 of 3 darts thrown"]) {
+    await throwButton.click({ force: true });
+    await page.clock.runFor(150);
+    await expect(page.locator(`[aria-label="${expectedDarts}"]:visible`)).toBeVisible();
+  }
 
   const exit = page.getByRole("button", { name: "Exit", exact: true });
   await expect(exit).toBeDisabled();
+  await page.clock.runFor(1_000);
   await expect(page.getByText("Casey at the oche", { exact: true })).toBeVisible({ timeout: 5_000 });
   await expect(exit).toBeEnabled();
   await exit.click();
@@ -216,10 +226,11 @@ test("exit confirmation pauses CPU play and cannot interrupt turn resolution", a
   const dialog = page.getByRole("dialog", { name: "Exit game?" });
   const cpuCard = page.locator("article:visible").filter({ hasText: "Casey" });
   await expect(dialog).toBeVisible();
-  await page.waitForTimeout(1_500);
+  await page.clock.runFor(1_500);
   await expect(cpuCard).toContainText("0 darts");
 
   await dialog.getByRole("button", { name: /Keep playing/i }).click();
+  await page.clock.runFor(5_000);
   await expect(page.getByText("Round 2 / 8", { exact: true })).toBeVisible({ timeout: 12_000 });
   await expect(cpuCard).not.toContainText("0 darts");
 });
